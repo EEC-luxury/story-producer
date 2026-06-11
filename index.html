@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Story Producer AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Tokens ── */
+    :root {
+      --bg:        #0d0d10;
+      --surface:   #16161c;
+      --surface2:  #1e1e26;
+      --border:    #2a2a36;
+      --accent:    #7c6ef7;
+      --accent-dim:#3d3680;
+      --user-bg:   #1a3a5c;
+      --ai-bg:     #1e1e26;
+      --text:      #e4e4f0;
+      --muted:     #8888a0;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --radius:    12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-family: 'Sora', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #a78bfa, #7c6ef7, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.3px;
+    }
+    #toggleSetupBtn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    #toggleSetupBtn:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── Setup Panel ── */
+    #setupPanel {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex-shrink: 0;
+      overflow: hidden;
+      max-height: 200px;
+      transition: max-height 0.35s ease, padding 0.35s ease, opacity 0.3s;
+      opacity: 1;
+    }
+    #setupPanel.hidden {
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .setup-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .setup-label {
+      font-size: 11px;
+      color: var(--muted);
+      min-width: 54px;
+      font-weight: 500;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .key-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .key-input:focus { border-color: var(--accent); }
+    #saveBtn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: background 0.2s, transform 0.1s;
+      align-self: flex-end;
+    }
+    #saveBtn:hover { background: #6b5de0; }
+    #saveBtn:active { transform: scale(0.97); }
+    #setupNote {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    #setupNote a { color: var(--accent); text-decoration: none; }
+
+    /* ── Chat Area ── */
+    #chatBox {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scroll-behavior: smooth;
+    }
+    #chatBox::-webkit-scrollbar { width: 4px; }
+    #chatBox::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .msg-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .msg-wrap.user { align-items: flex-end; }
+    .msg-wrap.ai   { align-items: flex-start; }
+
+    .msg-label {
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 0 4px;
+    }
+
+    .msg {
+      padding: 11px 15px;
+      border-radius: var(--radius);
+      max-width: 84%;
+      line-height: 1.55;
+      font-size: 14px;
+      word-break: break-word;
+    }
+    .msg.user {
+      background: var(--user-bg);
+      border-bottom-right-radius: 4px;
+      color: #c8e0ff;
+    }
+    .msg.ai {
+      background: var(--ai-bg);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+      white-space: pre-wrap;
+    }
+    .msg.status {
+      background: transparent;
+      border: 1px dashed var(--accent-dim);
+      color: var(--accent);
+      font-size: 13px;
+      max-width: 100%;
+      border-radius: 8px;
+    }
+    .msg.error {
+      background: transparent;
+      border: 1px dashed #6b1f1f;
+      color: var(--red);
+      font-size: 13px;
+      max-width: 100%;
+      border-radius: 8px;
+    }
+
+    /* ── Typing Indicator ── */
+    #typingIndicator {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      padding: 10px 15px;
+      background: var(--ai-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      border-bottom-left-radius: 4px;
+      width: fit-content;
+    }
+    #typingIndicator span {
+      width: 7px; height: 7px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite ease-in-out;
+      display: block;
+    }
+    #typingIndicator span:nth-child(2) { animation-delay: 0.2s; }
+    #typingIndicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40%            { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* ── Audio Player ── */
+    #audioSection {
+      display: none;
+      margin: 0 18px 4px;
+      background: var(--surface2);
+      border: 1px solid var(--accent-dim);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      flex-shrink: 0;
+    }
+    #audioSection .audio-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    #audioSection .audio-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    #downloadLink {
+      display: none;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--green);
+      text-decoration: none;
+      background: rgba(34,197,94,0.1);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(34,197,94,0.25);
+      transition: background 0.2s;
+    }
+    #downloadLink:hover { background: rgba(34,197,94,0.2); }
+    audio {
+      width: 100%;
+      height: 36px;
+      border-radius: 8px;
+      accent-color: var(--accent);
+    }
+
+    /* ── Input Bar ── */
+    #inputBar {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding: 12px 18px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #userInput {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      resize: none;
+      min-height: 42px;
+      max-height: 130px;
+      line-height: 1.5;
+      transition: border-color 0.2s;
+      outline: none;
+      overflow-y: auto;
+    }
+    #userInput:focus { border-color: var(--accent); }
+    #userInput::placeholder { color: var(--muted); }
+    #sendBtn {
+      background: var(--accent);
+      border: none;
+      color: white;
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s, transform 0.1s;
+    }
+    #sendBtn:hover { background: #6b5de0; }
+    #sendBtn:active { transform: scale(0.94); }
+    #sendBtn:disabled { background: var(--accent-dim); cursor: not-allowed; }
+    #sendBtn svg { width: 18px; height: 18px; fill: white; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <h1>🎬 Story Producer AI</h1>
+  <button id="toggleSetupBtn" onclick="toggleSetup()">⚙️ API Keys</button>
+</header>
+
+<!-- ── Setup Panel ── -->
+<div id="setupPanel">
+  <div class="setup-row">
+    <span class="setup-label">Gemini</span>
+    <input class="key-input" type="password" id="geminiKey" placeholder="Paste your Gemini API key" autocomplete="off" />
+  </div>
+  <div class="setup-row">
+    <span class="setup-label">11Labs</span>
+    <input class="key-input" type="password" id="elevenKey" placeholder="Paste your ElevenLabs API key" autocomplete="off" />
+  </div>
+  <p id="setupNote">
+    Get your Gemini key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a> · 
+    ElevenLabs at <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank">elevenlabs.io</a><br/>
+    Keys are saved in your browser only — never sent anywhere except the APIs directly.
+  </p>
+  <button id="saveBtn" onclick="saveKeys()">Save & Start Chatting</button>
+</div>
+
+<!-- ── Chat ── -->
+<div id="chatBox">
+  <div class="msg-wrap ai">
+    <span class="msg-label">Story AI</span>
+    <div class="msg ai">Hey! I'm your AI Story Producer. Tell me your story idea — even just a rough concept — and we'll shape it together into a full video script with frame-by-frame image prompts and a voiceover.
+
+Once we've both agreed on the layout, I'll generate the audio automatically.
+
+What's your story about?</div>
+  </div>
+  <div id="typingIndicator">
+    <span></span><span></span><span></span>
+  </div>
+</div>
+
+<!-- ── Audio Player ── -->
+<div id="audioSection">
+  <div class="audio-header">
+    <span class="audio-title">🎧 Voiceover Ready</span>
+    <a id="downloadLink" href="#" download="voiceover.mp3">⬇ Download MP3</a>
+  </div>
+  <audio id="audioPlayback" controls></audio>
+</div>
+
+<!-- ── Input Bar ── -->
+<div id="inputBar">
+  <textarea id="userInput" placeholder="Describe your story idea… (Enter to send, Shift+Enter for new line)" rows="1"></textarea>
+  <button id="sendBtn" onclick="sendMessage()" title="Send">
+    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+  </button>
+</div>
+
+<script>
+  /* ── Constants ── */
+  const GEMINI_URL = (key) =>
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+
+  // Points to your own Vercel serverless function — ElevenLabs key stays server-side
+  const PROXY_URL = '/api/voiceover';
+
+  const SYSTEM_INSTRUCTION = `You are an expert AI Storytelling Partner and Video Producer. Your job is to collaborate interactively with the user to design a story video.
+
+STRICT RULES:
+1. INTERACTIVE PHASE: Chat naturally. Ask smart clarifying questions about plot, characters, mood, and pacing. DO NOT generate the final asset breakdown yet — just explore ideas together.
+2. AGREEMENT GATE: Only move to generation after the user explicitly agrees. Accept phrases like: "I agree", "Approved", "Let's generate", "Proceed", "Start creating", or similar confirmation.
+3. GENERATION PHASE: Once agreed, produce a full breakdown:
+   - Number each scene clearly
+   - Within each scene, break it into multiple FRAMES (a scene must have at least 2–4 frames minimum)
+   - For every frame, provide:
+     [Frame X Image Prompt]: A rich, cinematic, specific image generation prompt (lighting, camera angle, color tone, style)
+     [Voiceover Text]: The exact words spoken during this frame
+4. TRIGGER: End your complete generation response with exactly this on its own line:
+### TRIGGER_VOICEOVER ###
+Then immediately after, on new lines, write ONLY the compiled voiceover lines in order — no labels, no frame numbers, just clean continuous narration text.`;
+
+  /* ── State ── */
+  let chatHistory = [];
+  let currentAudioUrl = null;
+  let isSending = false;
+
+  /* ── Init ── */
+  window.addEventListener('load', () => {
+    const gKey = localStorage.getItem('gemini_key') || '';
+    const eKey = localStorage.getItem('eleven_key') || '';
+    document.getElementById('geminiKey').value = gKey;
+    document.getElementById('elevenKey').value = eKey;
+
+    // Auto-hide setup if both keys are already saved
+    if (gKey && eKey) {
+      document.getElementById('setupPanel').classList.add('hidden');
+    }
+
+    // Auto-grow textarea
+    const ta = document.getElementById('userInput');
+    ta.addEventListener('input', () => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 130) + 'px';
+    });
+
+    // Enter to send (Shift+Enter = newline)
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!isSending) sendMessage();
+      }
+    });
+  });
+
+  /* ── Setup ── */
+  function toggleSetup() {
+    document.getElementById('setupPanel').classList.toggle('hidden');
+  }
+
+  function saveKeys() {
+    const gKey = document.getElementById('geminiKey').value.trim();
+    const eKey = document.getElementById('elevenKey').value.trim();
+    if (!gKey) { alert('Gemini key is required.'); return; }
+    localStorage.setItem('gemini_key', gKey);
+    localStorage.setItem('eleven_key', eKey);
+    document.getElementById('setupPanel').classList.add('hidden');
+    appendStatus('✅ Keys saved. You can update them anytime via the ⚙️ button.');
+  }
+
+  /* ── Send Message ── */
+  async function sendMessage() {
+    if (isSending) return;
+    const ta = document.getElementById('userInput');
+    const text = ta.value.trim();
+    if (!text) return;
+
+    const gKey = localStorage.getItem('gemini_key');
+    if (!gKey) {
+      appendError('No Gemini key found — tap ⚙️ API Keys to add it.');
+      return;
+    }
+
+    // Render user message
+    appendMsg(text, 'user');
+    ta.value = '';
+    ta.style.height = 'auto';
+
+    // Lock UI
+    isSending = true;
+    document.getElementById('sendBtn').disabled = true;
+    showTyping(true);
+
+    // Add to history
+    chatHistory.push({ role: 'user', parts: [{ text }] });
+
+    // Trim history to last 20 turns (10 pairs) to stay within context limits
+    if (chatHistory.length > 20) {
+      chatHistory = chatHistory.slice(-20);
+    }
+
+    try {
+      const res = await fetch(GEMINI_URL(gKey), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: chatHistory,
+          systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+        }),
+      });
+
+      const data = await res.json();
+
+      // Safe shape check
+      const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!aiText) {
+        const reason = data?.error?.message
+          || data?.candidates?.[0]?.finishReason
+          || 'Unknown error — check your Gemini key or try again.';
+        throw new Error(reason);
+      }
+
+      chatHistory.push({ role: 'model', parts: [{ text: aiText }] });
+      showTyping(false);
+
+      if (aiText.includes('### TRIGGER_VOICEOVER ###')) {
+        const [breakdown, script] = aiText.split('### TRIGGER_VOICEOVER ###');
+        appendMsg(breakdown.trim(), 'ai');
+
+        const eKey = localStorage.getItem('eleven_key');
+        if (eKey) {
+          appendStatus('⚡ Story approved! Generating voiceover audio…');
+          await generateVoiceover(script.trim(), eKey);
+        } else {
+          appendStatus('⚠️ No ElevenLabs key saved. Add it via ⚙️ to get audio.');
+          appendMsg('📝 Your compiled voiceover script:\n\n' + script.trim(), 'ai');
+        }
+      } else {
+        appendMsg(aiText, 'ai');
+      }
+
+    } catch (err) {
+      showTyping(false);
+      appendError('Gemini error: ' + err.message);
+    } finally {
+      isSending = false;
+      document.getElementById('sendBtn').disabled = false;
+      document.getElementById('userInput').focus();
+    }
+  }
+
+  /* ── Voiceover via Vercel Proxy ── */
+  async function generateVoiceover(scriptText, eKey) {
+    try {
+      // Revoke previous audio blob to free memory
+      if (currentAudioUrl) {
+        URL.revokeObjectURL(currentAudioUrl);
+        currentAudioUrl = null;
+      }
+
+      const res = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-elevenlabs-key': eKey, // proxy reads this header
+        },
+        body: JSON.stringify({ text: scriptText }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(errData.error || `Status ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      currentAudioUrl = URL.createObjectURL(blob);
+
+      const player = document.getElementById('audioPlayback');
+      const dlLink = document.getElementById('downloadLink');
+
+      player.src = currentAudioUrl;
+      dlLink.href = currentAudioUrl;
+      dlLink.style.display = 'inline-block';
+      document.getElementById('audioSection').style.display = 'block';
+
+      // Scroll audio into view then play
+      document.getElementById('audioSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      player.play().catch(() => {}); // Autoplay may be blocked on some browsers — controls still shown
+
+    } catch (err) {
+      appendError('Voiceover error: ' + err.message);
+    }
+  }
+
+  /* ── UI Helpers ── */
+  function appendMsg(text, role) {
+    const box = document.getElementById('chatBox');
+    const typing = document.getElementById('typingIndicator');
+
+    const wrap = document.createElement('div');
+    wrap.className = `msg-wrap ${role}`;
+
+    const label = document.createElement('span');
+    label.className = 'msg-label';
+    label.textContent = role === 'user' ? 'You' : 'Story AI';
+
+    const bubble = document.createElement('div');
+    bubble.className = `msg ${role}`;
+    bubble.textContent = text;
+
+    wrap.appendChild(label);
+    wrap.appendChild(bubble);
+    box.insertBefore(wrap, typing);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function appendStatus(text) {
+    const box = document.getElementById('chatBox');
+    const typing = document.getElementById('typingIndicator');
+    const div = document.createElement('div');
+    div.className = 'msg status';
+    div.textContent = text;
+    box.insertBefore(div, typing);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function appendError(text) {
+    const box = document.getElementById('chatBox');
+    const typing = document.getElementById('typingIndicator');
+    const div = document.createElement('div');
+    div.className = 'msg error';
+    div.textContent = '❌ ' + text;
+    box.insertBefore(div, typing);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function showTyping(visible) {
+    const el = document.getElementById('typingIndicator');
+    el.style.display = visible ? 'flex' : 'none';
+    if (visible) {
+      const box = document.getElementById('chatBox');
+      box.scrollTop = box.scrollHeight;
+    }
+  }
+</script>
+</body>
+</html>
