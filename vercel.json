@@ -1,10 +1,11 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/voiceover.js", "use": "@vercel/node" }
+    { "src": "api/voiceover.js", "use": "@vercel/node" },
+    { "src": "public/index.html", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    { "src": "/(.*)", "dest": "/public/$1" }
   ]
 }
