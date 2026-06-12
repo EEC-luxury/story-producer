@@ -120,19 +120,134 @@
       flex-shrink: 0;
     }
     .delete-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: none;
       border: none;
       color: var(--muted);
       cursor: pointer;
-      padding: 2px 4px;
-      border-radius: 4px;
-      font-size: 14px;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
       flex-shrink: 0;
       opacity: 0;
-      transition: opacity 0.15s, color 0.15s;
+      transition: opacity 0.15s, background 0.15s, color 0.15s;
     }
     .chat-item:hover .delete-btn { opacity: 1; }
-    .delete-btn:hover { color: var(--red); }
+    .delete-btn:hover {
+      background: rgba(239,68,68,0.12);
+      color: var(--red);
+    }
+    .delete-btn svg { pointer-events: none; }
+
+    /* ── Delete Confirmation Modal ── */
+    #deleteModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #deleteModal.open { display: flex; }
+    #deleteModal .dm-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    #deleteModal .dm-card {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px 22px;
+      max-width: 320px;
+      width: 100%;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
+      animation: dm-in 0.18s ease;
+    }
+    @keyframes dm-in {
+      from { transform: scale(0.94) translateY(8px); opacity: 0; }
+      to   { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .dm-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+    .dm-title {
+      font-family: 'Sora', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .dm-body {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.55;
+      margin-bottom: 22px;
+    }
+    .dm-story-name {
+      display: inline-block;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 500;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+    .dm-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .dm-btn {
+      flex: 1;
+      padding: 10px 0;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+      font-family: 'Inter', sans-serif;
+    }
+    .dm-btn:active { transform: scale(0.97); }
+    .dm-btn.cancel {
+      background: var(--surface2);
+      border-color: var(--border);
+      color: var(--muted);
+    }
+    .dm-btn.cancel:hover {
+      background: #2a2a36;
+      color: var(--text);
+    }
+    .dm-btn.confirm-del {
+      background: rgba(239,68,68,0.15);
+      border-color: rgba(239,68,68,0.4);
+      color: #f87171;
+    }
+    .dm-btn.confirm-del:hover {
+      background: rgba(239,68,68,0.25);
+      border-color: rgba(239,68,68,0.6);
+      color: #fca5a5;
+    }
 
     .sidebar-footer {
       padding: 12px 14px;
@@ -303,8 +418,36 @@
       background: var(--ai-bg);
       border: 1px solid var(--border);
       border-bottom-left-radius: 4px;
-      white-space: pre-wrap;
     }
+    /* Markdown rendering in AI messages */
+    .msg.ai p { margin: 0 0 8px; }
+    .msg.ai p:last-child { margin-bottom: 0; }
+    .msg.ai strong { color: #e4e4f0; font-weight: 600; }
+    .msg.ai em { color: #c4b5fd; font-style: italic; }
+    .msg.ai h2 { font-size: 15px; font-weight: 700; color: var(--text); margin: 10px 0 4px; }
+    .msg.ai h3 { font-size: 13px; font-weight: 600; color: #a78bfa; margin: 8px 0 3px; }
+    .msg.ai ul, .msg.ai ol { padding-left: 18px; margin: 4px 0 8px; }
+    .msg.ai li { line-height: 1.6; margin-bottom: 2px; }
+    .msg.ai blockquote { border-left: 3px solid var(--accent); padding-left: 10px; margin: 6px 0; color: var(--muted); font-style: italic; }
+    .msg.ai hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+    .msg.ai br { line-height: 1.6; }
+    /* Copy button */
+    .copy-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 2px 9px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.18s, color 0.15s, border-color 0.15s;
+      font-family: 'Inter', sans-serif;
+      align-self: flex-start;
+      margin-top: 2px;
+    }
+    .msg-wrap:hover .copy-btn { opacity: 1; }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
     .msg.status {
       background: transparent;
       border: 1px dashed var(--accent-dim);
@@ -468,6 +611,27 @@
 </head>
 <body>
 
+<!-- Delete confirmation modal -->
+<div id="deleteModal" role="dialog" aria-modal="true" aria-labelledby="dm-title-text">
+  <div class="dm-backdrop" id="dmBackdrop"></div>
+  <div class="dm-card">
+    <div class="dm-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+      </svg>
+    </div>
+    <div class="dm-title" id="dm-title-text">Delete Story?</div>
+    <div class="dm-body">
+      <span id="dmStoryName" class="dm-story-name"></span><br/><br/>
+      This will permanently remove the story and all its messages. This cannot be undone.
+    </div>
+    <div class="dm-actions">
+      <button class="dm-btn cancel" id="dmCancel">Cancel</button>
+      <button class="dm-btn confirm-del" id="dmConfirm">Delete Story</button>
+    </div>
+  </div>
+</div>
+
 <!-- Sidebar -->
 <div id="sidebar">
   <div class="sidebar-header">
@@ -562,20 +726,46 @@
   const API_CHAT      = '/api/chat';
   const API_VOICEOVER = '/api/voiceover';
 
-  const SYSTEM_INSTRUCTION = `You are an expert AI Storytelling Partner and Video Producer. Your job is to collaborate interactively with the user to design a story video.
+  const SYSTEM_INSTRUCTION = `You are Story Producer AI — a Nollywood and African drama story director and voice production studio.
 
-STRICT RULES:
-1. INTERACTIVE PHASE: Chat naturally. Ask smart clarifying questions about plot, characters, mood, and pacing. DO NOT generate the final asset breakdown yet.
-2. AGREEMENT GATE: Only move to generation after the user explicitly agrees with phrases like: "I agree", "Approved", "Let's generate", "Proceed", "Start creating".
-3. GENERATION PHASE: Once agreed, produce a full breakdown:
-   - Number each scene clearly
-   - Break each scene into multiple FRAMES (minimum 2-4 frames per scene)
-   - For every frame:
-     [Frame X Image Prompt]: Rich, cinematic image generation prompt (lighting, camera angle, color tone, art style)
-     [Voiceover Text]: Exact words spoken during this frame
-4. TRIGGER: End your generation response with exactly:
+PERSONALITY: Direct, warm, decisive, and excited about storytelling. Execute first, explain only if asked. Never re-summarize what the user just said back to them. Sound like a real creative director who loves the craft.
+
+WORKFLOW — follow this strictly every time:
+
+1. ANALYZE PHASE (when user shares a story idea or episode):
+   - Acknowledge the story with genuine enthusiasm in 1-2 lines
+   - Summarize the core strengths and dramatic hooks in 2-3 lines
+   - Propose a scene breakdown and suggest a strong cliffhanger or ending direction
+   - Ask 1-2 targeted creative questions (pacing, tone, key character reactions, mood)
+   - End ONLY with: "Anything to add or change before I seal this?"
+
+2. FEEDBACK PHASE:
+   - One round only. Incorporate feedback quickly.
+   - If user approves, says "proceed", "I agree", "let's go", "seal it", "nothing to add", or similar — move to step 3 immediately. Do NOT ask again.
+
+3. EXECUTE PHASE (only after approval):
+   - Write the full episode script scene by scene
+   - Break each scene into multiple FRAMES (minimum 3 frames per scene)
+   - For each frame use this format exactly:
+     **[Frame X Image Prompt]:** Rich cinematic prompt — open with lighting/color grade/camera style, describe the specific action and composition in 2-3 sentences, vary shot types (close-up/medium/wide/POV), end with "9:16 aspect ratio."
+     **[Voiceover Text]:** Exact narration for this frame. 1-3 punchy sentences. Use ... for pauses, — for dramatic cuts.
+   - After ALL frames, end with exactly this on its own line:
 ### TRIGGER_VOICEOVER ###
-Then write ONLY the compiled voiceover lines — no labels, no frame numbers, clean continuous narration.`;
+Then write ONLY the compiled voiceover lines in order — clean continuous narration, no labels, no frame numbers.
+
+IMAGE PROMPT RULES:
+- Build a Visual Bible from the story (color grade, lighting, setting, costume, camera style) and apply it consistently to EVERY frame across all episodes
+- Every frame MUST: open with Visual Bible elements, describe specific action/composition, vary shot type
+- GOOD: "Cinematic close-up, warm amber Nigerian golden-hour light, 35mm film grain. A man's collar pulled aside to reveal a crescent birthmark on his neck, dramatically side-lit. Background figures frozen in shock, softly blurred. 9:16 aspect ratio."
+- BAD: "A close-up of Stark's neck" — NEVER write lazy one-liners
+
+TONE & CULTURE:
+- You deeply understand Nollywood storytelling, Lagos settings, Nigerian culture, family drama, street hustle, and emotional twists
+- Celebrate the strongest parts of a story before refining it
+- Match the energy: if the story is intense, your analysis should feel intense
+- Be the creative partner the user wishes they had in the room
+
+DO NOT: ask more than one feedback round, re-summarize what the user said word-for-word, write lazy image prompts, skip TRIGGER_VOICEOVER once approved, or ask for approval more than once.`;
 
   // ── State ──
   let db            = null;
@@ -668,10 +858,14 @@ Then write ONLY the compiled voiceover lines — no labels, no frame numbers, cl
       div.innerHTML = `
         <span class="chat-item-title">${escHtml(chat.title || 'New Story')}</span>
         <span class="chat-item-date">${date}</span>
-        <button class="delete-btn" title="Delete" onclick="deleteChat(event,'${id}')">🗑</button>
+        <button class="delete-btn" title="Delete story" onclick="deleteChat(event,'${id}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+          </svg>
+        </button>
       `;
       div.addEventListener('click', (e) => {
-        if (e.target.classList.contains('delete-btn')) return;
+        if (e.target.closest('.delete-btn')) return;
         loadChat(id);
         if (window.innerWidth <= 600) closeSidebar();
       });
@@ -734,10 +928,29 @@ Then write ONLY the compiled voiceover lines — no labels, no frame numbers, cl
     document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
   }
 
-  // ── Delete Chat ──
+  // ── Delete Chat (custom modal) ──
+  let _pendingDeleteId = null;
+
   function deleteChat(e, id) {
     e.stopPropagation();
-    if (!confirm('Delete this story? This cannot be undone.')) return;
+    const chat = allChats[id];
+    const title = (chat && chat.title) ? chat.title : 'New Story';
+    _pendingDeleteId = id;
+
+    document.getElementById('dmStoryName').textContent = title;
+    document.getElementById('deleteModal').classList.add('open');
+    document.getElementById('dmConfirm').focus();
+  }
+
+  function _closeDM() {
+    document.getElementById('deleteModal').classList.remove('open');
+    _pendingDeleteId = null;
+  }
+
+  function _confirmDelete() {
+    const id = _pendingDeleteId;
+    _closeDM();
+    if (!id) return;
 
     if (db) db.ref('chats/' + id).remove();
     delete allChats[id];
@@ -752,6 +965,15 @@ Then write ONLY the compiled voiceover lines — no labels, no frame numbers, cl
     }
     renderChatList(allChats);
   }
+
+  // Wire up modal buttons — modal HTML is above this script so elements exist
+  document.getElementById('dmCancel').addEventListener('click', _closeDM);
+  document.getElementById('dmConfirm').addEventListener('click', _confirmDelete);
+  document.getElementById('dmBackdrop').addEventListener('click', _closeDM);
+  document.getElementById('deleteModal').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') _closeDM();
+    if (e.key === 'Enter')  _confirmDelete();
+  });
 
   // ── Persist current chat to Firebase ──
   function persistChat(newUserMsg, newAiMsg) {
@@ -892,6 +1114,48 @@ Then write ONLY the compiled voiceover lines — no labels, no frame numbers, cl
   }
 
   // ── UI Helpers ──
+  // ── Markdown → HTML renderer ──
+  function mdToHtml(txt) {
+    if (!txt) return '';
+    // Escape HTML entities
+    let h = txt
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    // Bold / italic
+    h = h.replace(/\*\*([^*
+]+?)\*\*/g, '<strong>$1</strong>');
+    h = h.replace(/\*([^*
+]+?)\*/g, '<em>$1</em>');
+    // Headings
+    h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    // Horizontal rule
+    h = h.replace(/^---$/gm, '<hr/>');
+    // Split on double newlines and process each block
+    const blocks = h.split(/
+
++/);
+    h = blocks.map(b => {
+      b = b.trim();
+      if (!b) return '';
+      if (/^<(h[23]|hr)/.test(b)) return b;
+      // List block: lines starting with - or bullet
+      if (/^[-•] /m.test(b)) {
+        const items = b.split('
+').map(line => {
+          const m = line.match(/^[-•] (.+)/);
+          return m ? '<li>' + m[1] + '</li>' : (line.trim() ? '<li>' + line.trim() + '</li>' : '');
+        }).filter(Boolean).join('');
+        return '<ul>' + items + '</ul>';
+      }
+      return '<p>' + b.replace(/
+/g, '<br/>') + '</p>';
+    }).filter(Boolean).join('
+');
+    return h;
+  }
+
   function appendMsg(text, role, scroll = true) {
     const box    = document.getElementById('chatBox');
     const typing = document.getElementById('typingIndicator');
@@ -905,10 +1169,36 @@ Then write ONLY the compiled voiceover lines — no labels, no frame numbers, cl
 
     const bubble = document.createElement('div');
     bubble.className = `msg ${role}`;
-    bubble.textContent = text;
+
+    if (role === 'ai') {
+      bubble.innerHTML = mdToHtml(text);
+    } else {
+      bubble.textContent = text;
+    }
+
+    // Copy button — appears on hover for every message
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', () => {
+      const raw = text || bubble.innerText || '';
+      navigator.clipboard.writeText(raw).then(() => {
+        copyBtn.textContent = '✓ Copied';
+        copyBtn.classList.add('copied');
+        setTimeout(() => { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1800);
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = raw; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+        copyBtn.textContent = '✓ Copied';
+        copyBtn.classList.add('copied');
+        setTimeout(() => { copyBtn.textContent = 'Copy'; copyBtn.classList.remove('copied'); }, 1800);
+      });
+    });
 
     wrap.appendChild(label);
     wrap.appendChild(bubble);
+    wrap.appendChild(copyBtn);
     box.insertBefore(wrap, typing);
     if (scroll) box.scrollTop = box.scrollHeight;
   }
