@@ -13,10 +13,7 @@ export default async function handler(req, res) {
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'xi-api-key': apiKey,
-        },
+        headers: { 'Content-Type': 'application/json', 'xi-api-key': apiKey },
         body: JSON.stringify({
           text: text.trim(),
           model_id: 'eleven_monolingual_v1',
@@ -24,14 +21,10 @@ export default async function handler(req, res) {
         }),
       }
     );
-
     if (!response.ok) {
       const errText = await response.text();
-      return res.status(response.status).json({
-        error: `ElevenLabs ${response.status}: ${errText}`,
-      });
+      return res.status(response.status).json({ error: `ElevenLabs ${response.status}: ${errText}` });
     }
-
     const audioBuffer = await response.arrayBuffer();
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Disposition', 'attachment; filename="voiceover.mp3"');

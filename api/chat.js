@@ -20,18 +20,12 @@ export default async function handler(req, res) {
         }),
       }
     );
-
     const data = await response.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
     if (!text) {
-      const reason =
-        data?.error?.message ||
-        data?.candidates?.[0]?.finishReason ||
-        'Empty response from Gemini.';
+      const reason = data?.error?.message || data?.candidates?.[0]?.finishReason || 'Empty response from Gemini.';
       return res.status(502).json({ error: reason });
     }
-
     res.json({ text });
   } catch (err) {
     res.status(500).json({ error: 'Gemini request failed: ' + err.message });
