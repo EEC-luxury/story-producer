@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet" />
   <style>
-    /* ── Tokens ── */
     :root {
       --bg:        #0d0d10;
       --surface:   #16161c;
@@ -78,7 +77,7 @@
       gap: 10px;
       flex-shrink: 0;
       overflow: hidden;
-      max-height: 200px;
+      max-height: 220px;
       transition: max-height 0.35s ease, padding 0.35s ease, opacity 0.3s;
       opacity: 1;
     }
@@ -133,7 +132,7 @@
     #setupNote {
       font-size: 11px;
       color: var(--muted);
-      line-height: 1.5;
+      line-height: 1.6;
     }
     #setupNote a { color: var(--accent); text-decoration: none; }
 
@@ -150,11 +149,7 @@
     #chatBox::-webkit-scrollbar { width: 4px; }
     #chatBox::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-    .msg-wrap {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
+    .msg-wrap { display: flex; flex-direction: column; gap: 4px; }
     .msg-wrap.user { align-items: flex-end; }
     .msg-wrap.ai   { align-items: flex-start; }
 
@@ -245,7 +240,7 @@
       justify-content: space-between;
       margin-bottom: 10px;
     }
-    #audioSection .audio-title {
+    .audio-title {
       font-size: 12px;
       font-weight: 600;
       color: var(--accent);
@@ -323,13 +318,13 @@
 </head>
 <body>
 
-<!-- ── Header ── -->
+<!-- Header -->
 <header>
   <h1>🎬 Story Producer AI</h1>
   <button id="toggleSetupBtn" onclick="toggleSetup()">⚙️ API Keys</button>
 </header>
 
-<!-- ── Setup Panel ── -->
+<!-- Setup Panel -->
 <div id="setupPanel">
   <div class="setup-row">
     <span class="setup-label">Gemini</span>
@@ -340,14 +335,14 @@
     <input class="key-input" type="password" id="elevenKey" placeholder="Paste your ElevenLabs API key" autocomplete="off" />
   </div>
   <p id="setupNote">
-    Get your Gemini key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a> · 
-    ElevenLabs at <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank">elevenlabs.io</a><br/>
-    Keys are saved in your browser only — never sent anywhere except the APIs directly.
+    Gemini key → <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a><br/>
+    ElevenLabs key → <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank">elevenlabs.io</a><br/>
+    Keys are stored in your browser only.
   </p>
   <button id="saveBtn" onclick="saveKeys()">Save & Start Chatting</button>
 </div>
 
-<!-- ── Chat ── -->
+<!-- Chat -->
 <div id="chatBox">
   <div class="msg-wrap ai">
     <span class="msg-label">Story AI</span>
@@ -362,7 +357,7 @@ What's your story about?</div>
   </div>
 </div>
 
-<!-- ── Audio Player ── -->
+<!-- Audio Player -->
 <div id="audioSection">
   <div class="audio-header">
     <span class="audio-title">🎧 Voiceover Ready</span>
@@ -371,7 +366,7 @@ What's your story about?</div>
   <audio id="audioPlayback" controls></audio>
 </div>
 
-<!-- ── Input Bar ── -->
+<!-- Input Bar -->
 <div id="inputBar">
   <textarea id="userInput" placeholder="Describe your story idea… (Enter to send, Shift+Enter for new line)" rows="1"></textarea>
   <button id="sendBtn" onclick="sendMessage()" title="Send">
@@ -380,12 +375,9 @@ What's your story about?</div>
 </div>
 
 <script>
-  /* ── Constants ── */
-  const GEMINI_URL = (key) =>
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
-
-  // Points to your own Vercel serverless function — ElevenLabs key stays server-side
-  const PROXY_URL = '/api/voiceover';
+  // ── Both APIs go through your own Vercel serverless functions ──
+  const API_CHAT      = '/api/chat';
+  const API_VOICEOVER = '/api/voiceover';
 
   const SYSTEM_INSTRUCTION = `You are an expert AI Storytelling Partner and Video Producer. Your job is to collaborate interactively with the user to design a story video.
 
@@ -394,39 +386,31 @@ STRICT RULES:
 2. AGREEMENT GATE: Only move to generation after the user explicitly agrees. Accept phrases like: "I agree", "Approved", "Let's generate", "Proceed", "Start creating", or similar confirmation.
 3. GENERATION PHASE: Once agreed, produce a full breakdown:
    - Number each scene clearly
-   - Within each scene, break it into multiple FRAMES (a scene must have at least 2–4 frames minimum)
-   - For every frame, provide:
-     [Frame X Image Prompt]: A rich, cinematic, specific image generation prompt (lighting, camera angle, color tone, style)
+   - Within each scene, break it into multiple FRAMES (minimum 2-4 frames per scene)
+   - For every frame provide:
+     [Frame X Image Prompt]: A rich, cinematic, specific image generation prompt (lighting, camera angle, color tone, art style)
      [Voiceover Text]: The exact words spoken during this frame
 4. TRIGGER: End your complete generation response with exactly this on its own line:
 ### TRIGGER_VOICEOVER ###
-Then immediately after, on new lines, write ONLY the compiled voiceover lines in order — no labels, no frame numbers, just clean continuous narration text.`;
+Then immediately after, write ONLY the compiled voiceover lines in order — no labels, no frame numbers, just clean continuous narration text.`;
 
-  /* ── State ── */
-  let chatHistory = [];
+  let chatHistory   = [];
   let currentAudioUrl = null;
-  let isSending = false;
+  let isSending     = false;
 
-  /* ── Init ── */
+  // ── Init ──
   window.addEventListener('load', () => {
     const gKey = localStorage.getItem('gemini_key') || '';
     const eKey = localStorage.getItem('eleven_key') || '';
     document.getElementById('geminiKey').value = gKey;
     document.getElementById('elevenKey').value = eKey;
+    if (gKey && eKey) document.getElementById('setupPanel').classList.add('hidden');
 
-    // Auto-hide setup if both keys are already saved
-    if (gKey && eKey) {
-      document.getElementById('setupPanel').classList.add('hidden');
-    }
-
-    // Auto-grow textarea
     const ta = document.getElementById('userInput');
     ta.addEventListener('input', () => {
       ta.style.height = 'auto';
       ta.style.height = Math.min(ta.scrollHeight, 130) + 'px';
     });
-
-    // Enter to send (Shift+Enter = newline)
     ta.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -435,7 +419,6 @@ Then immediately after, on new lines, write ONLY the compiled voiceover lines in
     });
   });
 
-  /* ── Setup ── */
   function toggleSetup() {
     document.getElementById('setupPanel').classList.toggle('hidden');
   }
@@ -447,61 +430,48 @@ Then immediately after, on new lines, write ONLY the compiled voiceover lines in
     localStorage.setItem('gemini_key', gKey);
     localStorage.setItem('eleven_key', eKey);
     document.getElementById('setupPanel').classList.add('hidden');
-    appendStatus('✅ Keys saved. You can update them anytime via the ⚙️ button.');
+    appendStatus('✅ Keys saved. Update anytime via the ⚙️ button.');
   }
 
-  /* ── Send Message ── */
+  // ── Send Message ──
   async function sendMessage() {
     if (isSending) return;
-    const ta = document.getElementById('userInput');
+    const ta   = document.getElementById('userInput');
     const text = ta.value.trim();
     if (!text) return;
 
     const gKey = localStorage.getItem('gemini_key');
-    if (!gKey) {
-      appendError('No Gemini key found — tap ⚙️ API Keys to add it.');
-      return;
-    }
+    if (!gKey) { appendError('No Gemini key — tap ⚙️ API Keys to add it.'); return; }
 
-    // Render user message
     appendMsg(text, 'user');
     ta.value = '';
     ta.style.height = 'auto';
 
-    // Lock UI
     isSending = true;
     document.getElementById('sendBtn').disabled = true;
     showTyping(true);
 
-    // Add to history
     chatHistory.push({ role: 'user', parts: [{ text }] });
-
-    // Trim history to last 20 turns (10 pairs) to stay within context limits
-    if (chatHistory.length > 20) {
-      chatHistory = chatHistory.slice(-20);
-    }
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
 
     try {
-      const res = await fetch(GEMINI_URL(gKey), {
+      // Call Gemini via our own /api/chat proxy — no CORS issues
+      const res = await fetch(API_CHAT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-gemini-key': gKey,
+        },
         body: JSON.stringify({
-          contents: chatHistory,
-          systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+          history: chatHistory,
+          systemInstruction: SYSTEM_INSTRUCTION,
         }),
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
 
-      // Safe shape check
-      const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!aiText) {
-        const reason = data?.error?.message
-          || data?.candidates?.[0]?.finishReason
-          || 'Unknown error — check your Gemini key or try again.';
-        throw new Error(reason);
-      }
-
+      const aiText = data.text;
       chatHistory.push({ role: 'model', parts: [{ text: aiText }] });
       showTyping(false);
 
@@ -531,20 +501,16 @@ Then immediately after, on new lines, write ONLY the compiled voiceover lines in
     }
   }
 
-  /* ── Voiceover via Vercel Proxy ── */
+  // ── Voiceover via /api/voiceover proxy ──
   async function generateVoiceover(scriptText, eKey) {
     try {
-      // Revoke previous audio blob to free memory
-      if (currentAudioUrl) {
-        URL.revokeObjectURL(currentAudioUrl);
-        currentAudioUrl = null;
-      }
+      if (currentAudioUrl) { URL.revokeObjectURL(currentAudioUrl); currentAudioUrl = null; }
 
-      const res = await fetch(PROXY_URL, {
+      const res = await fetch(API_VOICEOVER, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-elevenlabs-key': eKey, // proxy reads this header
+          'x-elevenlabs-key': eKey,
         },
         body: JSON.stringify({ text: scriptText }),
       });
@@ -564,32 +530,26 @@ Then immediately after, on new lines, write ONLY the compiled voiceover lines in
       dlLink.href = currentAudioUrl;
       dlLink.style.display = 'inline-block';
       document.getElementById('audioSection').style.display = 'block';
-
-      // Scroll audio into view then play
       document.getElementById('audioSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      player.play().catch(() => {}); // Autoplay may be blocked on some browsers — controls still shown
+      player.play().catch(() => {});
 
     } catch (err) {
       appendError('Voiceover error: ' + err.message);
     }
   }
 
-  /* ── UI Helpers ── */
+  // ── UI Helpers ──
   function appendMsg(text, role) {
-    const box = document.getElementById('chatBox');
+    const box    = document.getElementById('chatBox');
     const typing = document.getElementById('typingIndicator');
-
-    const wrap = document.createElement('div');
+    const wrap   = document.createElement('div');
     wrap.className = `msg-wrap ${role}`;
-
-    const label = document.createElement('span');
+    const label  = document.createElement('span');
     label.className = 'msg-label';
     label.textContent = role === 'user' ? 'You' : 'Story AI';
-
     const bubble = document.createElement('div');
     bubble.className = `msg ${role}`;
     bubble.textContent = text;
-
     wrap.appendChild(label);
     wrap.appendChild(bubble);
     box.insertBefore(wrap, typing);
@@ -597,9 +557,9 @@ Then immediately after, on new lines, write ONLY the compiled voiceover lines in
   }
 
   function appendStatus(text) {
-    const box = document.getElementById('chatBox');
+    const box    = document.getElementById('chatBox');
     const typing = document.getElementById('typingIndicator');
-    const div = document.createElement('div');
+    const div    = document.createElement('div');
     div.className = 'msg status';
     div.textContent = text;
     box.insertBefore(div, typing);
@@ -607,9 +567,9 @@ Then immediately after, on new lines, write ONLY the compiled voiceover lines in
   }
 
   function appendError(text) {
-    const box = document.getElementById('chatBox');
+    const box    = document.getElementById('chatBox');
     const typing = document.getElementById('typingIndicator');
-    const div = document.createElement('div');
+    const div    = document.createElement('div');
     div.className = 'msg error';
     div.textContent = '❌ ' + text;
     box.insertBefore(div, typing);
@@ -619,10 +579,7 @@ Then immediately after, on new lines, write ONLY the compiled voiceover lines in
   function showTyping(visible) {
     const el = document.getElementById('typingIndicator');
     el.style.display = visible ? 'flex' : 'none';
-    if (visible) {
-      const box = document.getElementById('chatBox');
-      box.scrollTop = box.scrollHeight;
-    }
+    if (visible) document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
   }
 </script>
 </body>
