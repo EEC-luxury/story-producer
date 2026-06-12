@@ -814,11 +814,20 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
     if (window.innerWidth > 600) {
       document.getElementById('sidebar').classList.remove('hidden');
     }
+
+    // Wire delete modal buttons
+    document.getElementById('dmCancel').addEventListener('click', _closeDM);
+    document.getElementById('dmConfirm').addEventListener('click', _confirmDelete);
+    document.getElementById('dmBackdrop').addEventListener('click', _closeDM);
+    document.getElementById('deleteModal').addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') _closeDM();
+      if (e.key === 'Enter')  _confirmDelete();
+    });
   });
 
   // ── Firebase: Listen to all chats ──
   function listenToChats() {
-    db.ref('chats').orderByChild('updatedAt').on('value', (snap) => {
+    db.ref('sp_chats').orderByChild('updatedAt').on('value', (snap) => {
       allChats = {};
       if (snap.exists()) {
         snap.forEach(child => { allChats[child.key] = child.val(); });
@@ -886,7 +895,7 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
       updatedAt: now
     };
 
-    if (db) db.ref('chats/' + id).set(newChat).catch(() => {});
+    if (db) db.ref('sp_chats/' + id).set(newChat).catch(() => {});
 
     allChats[id]  = newChat;
     currentChatId = id;
@@ -952,7 +961,7 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
     _closeDM();
     if (!id) return;
 
-    if (db) db.ref('chats/' + id).remove();
+    if (db) db.ref('sp_chats/' + id).remove();
     delete allChats[id];
 
     if (currentChatId === id) {
@@ -966,14 +975,7 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
     renderChatList(allChats);
   }
 
-  // Wire up modal buttons — modal HTML is above this script so elements exist
-  document.getElementById('dmCancel').addEventListener('click', _closeDM);
-  document.getElementById('dmConfirm').addEventListener('click', _confirmDelete);
-  document.getElementById('dmBackdrop').addEventListener('click', _closeDM);
-  document.getElementById('deleteModal').addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') _closeDM();
-    if (e.key === 'Enter')  _confirmDelete();
-  });
+
 
   // ── Persist current chat to Firebase ──
   function persistChat(newUserMsg, newAiMsg) {
@@ -1003,7 +1005,7 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
     allChats[currentChatId] = updated;
     updateChatTitle(title);
 
-    if (db) db.ref('chats/' + currentChatId).set(updated).catch(() => {});
+    if (db) db.ref('sp_chats/' + currentChatId).set(updated).catch(() => {});
     renderChatList(allChats);
   }
 
@@ -1117,43 +1119,36 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
   // ── Markdown → HTML renderer ──
   function mdToHtml(txt) {
     if (!txt) return '';
-    // Escape HTML entities
-    let h = txt
+    var h = txt
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
-    // Bold / italic
-    h = h.replace(/\*\*([^*
-]+?)\*\*/g, '<strong>$1</strong>');
-    h = h.replace(/\*([^*
-]+?)\*/g, '<em>$1</em>');
-    // Headings
+    h = h.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>');
+    h = h.replace(/\*([^*]+?)\*/g, '<em>$1</em>');
     h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    // Horizontal rule
     h = h.replace(/^---$/gm, '<hr/>');
-    // Split on double newlines and process each block
-    const blocks = h.split(/
-
-+/);
-    h = blocks.map(b => {
-      b = b.trim();
-      if (!b) return '';
-      if (/^<(h[23]|hr)/.test(b)) return b;
-      // List block: lines starting with - or bullet
-      if (/^[-•] /m.test(b)) {
-        const items = b.split('
-').map(line => {
-          const m = line.match(/^[-•] (.+)/);
-          return m ? '<li>' + m[1] + '</li>' : (line.trim() ? '<li>' + line.trim() + '</li>' : '');
-        }).filter(Boolean).join('');
-        return '<ul>' + items + '</ul>';
+    var parts = h.split('\n\n');
+    var out = [];
+    for (var i = 0; i < parts.length; i++) {
+      var b = parts[i].trim();
+      if (!b) continue;
+      if (/^<(h[23]|hr)/.test(b)) { out.push(b); continue; }
+      if (/^[-\u2022] /m.test(b)) {
+        var rows = b.split('\n');
+        var lis = '';
+        for (var j = 0; j < rows.length; j++) {
+          var row = rows[j];
+          var m = row.match(/^[-\u2022] (.+)/);
+          if (m) lis += '<li>' + m[1] + '</li>';
+          else if (row.trim()) lis += '<li>' + row.trim() + '</li>';
+        }
+        out.push('<ul>' + lis + '</ul>');
+        continue;
       }
-      return '<p>' + b.replace(/
-/g, '<br/>') + '</p>';
-    }).filter(Boolean).join('
-');
-    return h;
+      out.push('<p>' + b.replace(/\n/g, '<br/>') + '</p>');
+    }
+    return out.join('\n');
   }
 
   function appendMsg(text, role, scroll = true) {
