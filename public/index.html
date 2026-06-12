@@ -766,7 +766,9 @@ TONE & CULTURE:
 - Match the energy: if the story is intense, your analysis should feel intense
 - Be the creative partner the user wishes they had in the room
 
-DO NOT: ask more than one feedback round, re-summarize what the user said word-for-word, write lazy image prompts, skip TRIGGER_VOICEOVER once approved, or ask for approval more than once.`;
+DO NOT: ask more than one feedback round, re-summarize what the user said word-for-word, write lazy image prompts, skip TRIGGER_VOICEOVER once approved, or ask for approval more than once.
+
+VOICEOVER ERRORS & RETRY: If the user says audio failed, error, or asks to regenerate/redo/retry the voiceover, do NOT rewrite the story. Say: The voiceover failed (API rate limit likely). Tap the Retry Voiceover button below the error message. If they say button is gone after refresh, say: Just type regenerate audio and I will resend the script so the button reappears. When user types regenerate audio, re-output full scene breakdown ending with ### TRIGGER_VOICEOVER ### and compiled voiceover lines.`;
 
   // ── State ──
   let db            = null;
@@ -775,6 +777,7 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
   let allChats      = {};
   let isSending     = false;
   let currentAudioUrl = null;
+  let lastVoiceoverScript = null;
 
   // ── Init ──
   window.addEventListener('load', () => {
@@ -1062,6 +1065,7 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
         appendMsg(cleanBreakdown, 'ai');
         persistChat(text, cleanBreakdown);
 
+        lastVoiceoverScript = script.trim();
         appendStatus('⚡ Story approved! Generating voiceover…');
         await generateVoiceover(script.trim());
       } else {
@@ -1115,7 +1119,7 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
 
       // Use Gemini TTS — free, uses same Gemini key as chat
       const ttsRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-tts:generateContent?key=${gKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${gKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1151,8 +1155,34 @@ DO NOT: ask more than one feedback round, re-summarize what the user said word-f
       player.play().catch(() => {});
 
     } catch (err) {
-      appendError('Voiceover error: ' + err.message);
+      appendVoiceoverError('Voiceover error: ' + err.message);
     }
+  }
+
+  function appendVoiceoverError(text) {
+    const box = document.getElementById('chatBox');
+    const typing = document.getElementById('typingIndicator');
+    const wrap = document.createElement('div');
+    wrap.className = 'msg error';
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+    const msg = document.createElement('span');
+    msg.textContent = '❌ ' + text;
+    wrap.appendChild(msg);
+    if (lastVoiceoverScript) {
+      const btn = document.createElement('button');
+      btn.textContent = '🔄 Retry Voiceover';
+      btn.style.cssText = 'background:#3d3680;border:1px solid #7c6ef7;color:#c4b5fd;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;width:fit-content;';
+      btn.onclick = async () => {
+        btn.disabled = true;
+        btn.textContent = '⏳ Retrying…';
+        wrap.remove();
+        appendStatus('🔄 Retrying voiceover…');
+        await generateVoiceover(lastVoiceoverScript);
+      };
+      wrap.appendChild(btn);
+    }
+    box.insertBefore(wrap, typing);
+    box.scrollTop = box.scrollHeight;
   }
 
   // ── UI Helpers ──
