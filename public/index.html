@@ -432,6 +432,17 @@
     .msg.ai hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
     .msg.ai br { line-height: 1.6; }
     /* Copy button */
+    #downloadZipBtn { background: var(--accent); border: none; color: #fff;
+      padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: Inter,sans-serif; transition: opacity 0.2s; }
+    #downloadZipBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .scene-audio-item { margin: 8px 0; padding: 8px 10px;
+      background: var(--surface3, #1e1e2e); border-radius: 8px;
+      display: flex; flex-direction: column; gap: 4px; }
+    .scene-audio-label { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+    .scene-audio-status { font-size: 11px; color: var(--muted); }
+    .scene-audio-status.done { color: var(--green, #4ade80); }
+    .scene-audio-status.error { color: #f87171; }
     .copy-btn {
       background: var(--surface2);
       border: 1px solid var(--border);
@@ -701,9 +712,9 @@
   <div id="audioSection">
     <div class="audio-header">
       <span class="audio-title">🎧 Voiceover Ready</span>
-      <a id="downloadLink" href="#" download="voiceover.mp3">⬇ Download MP3</a>
+      <button id="downloadZipBtn" onclick="downloadAllZip()">⬇ Download All Scenes (.zip)</button>
     </div>
-    <audio id="audioPlayback" controls></audio>
+    <div id="sceneAudioList"></div>
   </div>
 
   <!-- Input -->
@@ -730,8 +741,7 @@
   };
 
   // ── API Endpoints (proxied through Vercel) ──
-  const API_CHAT      = '/api/chat';
-  const API_VOICEOVER = '/api/voiceover';
+  const API_CHAT = '/api/chat';
 
   const SYSTEM_INSTRUCTION = `You are Story Producer AI — a Nollywood drama director and voice production studio.
 
@@ -743,7 +753,7 @@ WORKFLOW — 4 strict phases:
    - 1-2 lines of genuine enthusiasm
    - Core dramatic hooks and strengths (2-3 lines)
    - Proposed scene breakdown with suggested ending direction
-   - Ask: "Do you have an image reference or previous episode frames? If yes, share the last frame prompt so I can match the visual style. If no, we build fresh."
+   - Ask: "Do you have a previous episode or image reference? If yes, describe the characters and visual style (clothing, skin tone, setting, color grade) or paste your last frame prompt — I cannot receive image files, only text descriptions. If no, we build the visual style from scratch."
    - 1-2 focused questions on pacing, tone, or key character moments
    - End with: "Anything to add or change?"
 
@@ -759,7 +769,14 @@ FRAME FORMAT (use exactly):
 
 After the last frame write on its own line:
 ### TRIGGER_VOICEOVER ###
-Then ONLY the compiled voiceover lines in order — no labels, no frame numbers.
+Then write the voiceover split by scene using this exact format:
+### SCENE 1 [VOICE:male] ###
+[voiceover lines for scene 1]
+### SCENE 2 [VOICE:female] ###
+[voiceover lines for scene 2]
+VOICE tag is optional — use male/female/child only when the story requires it. If no voice tag is needed, omit it: ### SCENE 1 ###
+Default voice (no tag) is always the deep male narrator.
+Never use more than 3 different voices in one story.
 
 IMAGE RULES:
 Build a Visual Bible: color grade, lighting, camera style, costume palette. Apply to every frame. Match reference if user provided one.
@@ -784,7 +801,7 @@ VOICEOVER ENGINE: ElevenLabs Antoni voice — warm, deep, cinematic male narrato
 
 CULTURE: You deeply understand Nollywood, Lagos life, Nigerian family drama, street hustle, and emotional twists. Match the user's energy.
 
-VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate — do NOT rewrite the story. Say: "The voiceover failed (usually a rate limit). Tap the Retry Voiceover button below the error." If page refreshed and button gone, say: "Type regenerate audio and I will resend the script." When they type regenerate audio, re-output full script ending with ### TRIGGER_VOICEOVER ### and compiled voiceover lines.``;
+VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate — do NOT rewrite the story. Say: "The voiceover failed (usually a rate limit). Tap the Retry Voiceover button below the error." If page refreshed and button gone, say: "Type regenerate audio and I will resend the script." When they type regenerate audio, re-output full script ending with ### TRIGGER_VOICEOVER ### and compiled voiceover lines.`;
 
   // ── State ──
   let db            = null;
@@ -794,12 +811,16 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
   let isSending     = false;
   let currentAudioUrl = null;
   let lastVoiceoverScript = null;
+  let voiceRegistry = { male: null, female: null, child: null }; // loaded from ElevenLabs
 
   // ── Init ──
   window.addEventListener('load', () => {
     // Load keys
     document.getElementById('geminiKey').value = localStorage.getItem('gemini_key') || '';
     document.getElementById('elevenKey').value = localStorage.getItem('eleven_key') || '';
+    // Auto-load voices if ElevenLabs key already saved
+    const _savedEKey = localStorage.getItem('eleven_key');
+    if (_savedEKey) fetchVoices(_savedEKey);
 
     // Show setup if no Gemini key
     if (!localStorage.getItem('gemini_key')) {
@@ -1099,77 +1120,299 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
     }
   }
 
-  // ── WAV header builder (Gemini TTS returns raw PCM — 24kHz, mono, 16-bit) ──
-  function buildWavBlob(pcmBytes) {
-    const sampleRate   = 24000;
-    const numChannels  = 1;
-    const bitsPerSample = 16;
-    const dataLen      = pcmBytes.length;
-    const buffer       = new ArrayBuffer(44 + dataLen);
-    const view         = new DataView(buffer);
-    const write        = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
-    write(0,  'RIFF');
-    view.setUint32(4,  36 + dataLen, true);
-    write(8,  'WAVE');
-    write(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1,  true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate,  true);
-    view.setUint32(28, sampleRate * numChannels * bitsPerSample / 8, true);
-    view.setUint16(32, numChannels * bitsPerSample / 8, true);
-    view.setUint16(34, bitsPerSample, true);
-    write(36, 'data');
-    view.setUint32(40, dataLen, true);
-    new Uint8Array(buffer).set(pcmBytes, 44);
-    return new Blob([buffer], { type: 'audio/wav' });
-  }
 
   // ── Voiceover ──
+  // ── Fetch voices from ElevenLabs and build registry ──
+  async function fetchVoices(eKey) {
+    try {
+      const res = await fetch('https://api.elevenlabs.io/v1/voices', {
+        headers: { 'xi-api-key': eKey }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const voices = data.voices || [];
+
+      // Map gender/age labels to voice IDs
+      // Priority: use labels from ElevenLabs metadata
+      for (const v of voices) {
+        const labels = v.labels || {};
+        const gender = (labels.gender || '').toLowerCase();
+        const age    = (labels.age    || '').toLowerCase();
+        if (age === 'child' && !voiceRegistry.child) {
+          voiceRegistry.child = v.voice_id;
+        } else if (gender === 'female' && !voiceRegistry.female) {
+          voiceRegistry.female = v.voice_id;
+        } else if (gender === 'male' && !voiceRegistry.male) {
+          voiceRegistry.male = v.voice_id;
+        }
+      }
+      // Fallback: confirmed working Antoni as male default
+      if (!voiceRegistry.male) voiceRegistry.male = 'ErXwobaYiN019PkySvjV';
+      console.log('Voice registry:', voiceRegistry);
+    } catch (e) {
+      console.warn('fetchVoices failed:', e.message);
+    }
+  }
+
+  // ── Resolve voice tag to voice ID ──
+  function resolveVoice(tag) {
+    const t = (tag || '').toLowerCase().trim();
+    // Always fall back to male/default if requested voice not in registry
+    if (t === 'female') return voiceRegistry.female || voiceRegistry.male || 'ErXwobaYiN019PkySvjV';
+    if (t === 'child')  return voiceRegistry.child  || voiceRegistry.female || voiceRegistry.male || 'ErXwobaYiN019PkySvjV';
+    return voiceRegistry.male || 'ErXwobaYiN019PkySvjV';
+  }
+
+  // ── Parse voiceover script into scenes ──
+  // Format: ### SCENE N [VOICE:tag] ### ... ### SCENE N+1 ...
+  // Also handles legacy format (no scene markers = one scene)
+  function parseScenes(scriptText) {
+    const sceneRegex = /###\s*SCENE\s*(\d+)(?:\s*\[VOICE:(\w+)\])?\s*###([\s\S]*?)(?=###\s*SCENE|\s*$)/gi;
+    const scenes = [];
+    let match;
+    while ((match = sceneRegex.exec(scriptText)) !== null) {
+      const num   = match[1];
+      const voice = match[2] || 'male';
+      const text  = match[3].trim();
+      if (text) scenes.push({ num, voice, text });
+    }
+    // Legacy fallback — no scene markers, treat as one scene
+    if (scenes.length === 0 && scriptText.trim()) {
+      scenes.push({ num: '1', voice: 'male', text: scriptText.trim() });
+    }
+    return scenes;
+  }
+
+  // ── Generate one scene audio ──
+  async function generateSceneAudio(text, voiceId, eKey) {
+    const tryVoices = [voiceId, 'ErXwobaYiN019PkySvjV', 'CwhRBWXzGAHq8TQ4Fs17'];
+    for (const vid of tryVoices) {
+      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${vid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'xi-api-key': eKey },
+        body: JSON.stringify({
+          text,
+          model_id: 'eleven_turbo_v2_5',
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        }),
+      });
+      if (res.status === 402 || res.status === 403 || res.status === 404) continue;
+      if (!res.ok) { const e = await res.text(); throw new Error(`ElevenLabs ${res.status}: ${e}`); }
+      return await res.arrayBuffer();
+    }
+    throw new Error('All voices failed for this scene.');
+  }
+
+  // ── Main voiceover generator ──
+  let generatedScenes = []; // { num, voice, filename, blob }
+
   async function generateVoiceover(scriptText) {
     try {
       if (currentAudioUrl) { URL.revokeObjectURL(currentAudioUrl); currentAudioUrl = null; }
+      generatedScenes = [];
 
       const eKey = localStorage.getItem('eleven_key');
       if (!eKey) throw new Error('No ElevenLabs key found. Please add it via ⚙️ API Keys.');
 
-      // ElevenLabs Antoni (ErXwobaYiN019PkySvjV) confirmed working on free tier
-      // Fallback: saved account voice
-      const tryVoices = ['ErXwobaYiN019PkySvjV', 'CwhRBWXzGAHq8TQ4Fs17'];
-      let blob = null;
-      for (const voiceId of tryVoices) {
-        const ttsRes = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'xi-api-key': eKey },
-            body: JSON.stringify({
-              text: scriptText,
-              model_id: 'eleven_turbo_v2_5',
-              voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-            }),
-          }
-        );
-        if (ttsRes.status === 402 || ttsRes.status === 403 || ttsRes.status === 404) continue;
-        if (!ttsRes.ok) { const e = await ttsRes.text(); throw new Error(`ElevenLabs ${ttsRes.status}: ${e}`); }
-        blob = new Blob([await ttsRes.arrayBuffer()], { type: 'audio/mpeg' });
-        break;
-      }
-      if (!blob) throw new Error('All voices failed. Check your ElevenLabs key or free tier limits.');
-      currentAudioUrl = URL.createObjectURL(blob);
+      // Ensure voices are loaded
+      if (!voiceRegistry.male) await fetchVoices(eKey);
 
-      const player = document.getElementById('audioPlayback');
-      const dlLink = document.getElementById('downloadLink');
-      player.src    = currentAudioUrl;
-      dlLink.href   = currentAudioUrl;
-      dlLink.style.display = 'inline-block';
-      document.getElementById('audioSection').style.display = 'block';
-      document.getElementById('audioSection').scrollIntoView({ behavior:'smooth', block:'nearest' });
-      player.play().catch(() => {});
+      const scenes = parseScenes(scriptText);
+      if (scenes.length === 0) throw new Error('No voiceover content found in script.');
+
+      // Show audio section with scene list
+      const audioSection = document.getElementById('audioSection');
+      const sceneList    = document.getElementById('sceneAudioList');
+      sceneList.innerHTML = '';
+      audioSection.style.display = 'block';
+      audioSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+      // Create status rows for all scenes
+      scenes.forEach(scene => {
+        const item = document.createElement('div');
+        item.className = 'scene-audio-item';
+        item.id = `scene-item-${scene.num}`;
+        item.innerHTML = (
+          `<span class="scene-audio-label">Scene ${scene.num}` +
+          (scene.voice !== 'male' ? ` — ${scene.voice} voice` : '') +
+          `</span>` +
+          `<span class="scene-audio-status" id="scene-status-${scene.num}">⏳ Generating…</span>`
+        );
+        sceneList.appendChild(item);
+      });
+
+      document.getElementById('downloadZipBtn').disabled = true;
+      document.getElementById('downloadZipBtn').textContent = '⏳ Generating scenes…';
+
+      // Generate each scene sequentially (rate limit safe)
+      let successCount = 0;
+      for (const scene of scenes) {
+        const statusEl = document.getElementById(`scene-status-${scene.num}`);
+        try {
+          const voiceId  = resolveVoice(scene.voice);
+          const buffer   = await generateSceneAudio(scene.text, voiceId, eKey);
+          const blob     = new Blob([buffer], { type: 'audio/mpeg' });
+          const filename = `Scene_${String(scene.num).padStart(2,'0')}.mp3`;
+          generatedScenes.push({ num: scene.num, filename, blob });
+
+          // Add audio player for this scene
+          const itemEl = document.getElementById(`scene-item-${scene.num}`);
+          const audio  = document.createElement('audio');
+          audio.controls = true;
+          audio.style.cssText = 'width:100%;margin-top:4px;height:32px;';
+          audio.src = URL.createObjectURL(blob);
+          itemEl.appendChild(audio);
+          statusEl.textContent = '✅ Ready';
+          statusEl.className = 'scene-audio-status done';
+          successCount++;
+
+          // Respect ElevenLabs free tier 3 RPM limit — wait 22s between scenes
+          if (scenes.indexOf(scene) < scenes.length - 1) {
+            const nextScene = scenes[scenes.indexOf(scene) + 1];
+            const nextStatus = document.getElementById(`scene-status-${nextScene.num}`);
+            for (let countdown = 22; countdown > 0; countdown--) {
+              if (nextStatus) nextStatus.textContent = `⏳ Waiting ${countdown}s (rate limit)…`;
+              await new Promise(r => setTimeout(r, 1000));
+            }
+          }
+        } catch (err) {
+          statusEl.textContent = '❌ Failed: ' + err.message;
+          statusEl.className = 'scene-audio-status error';
+        }
+      }
+
+      if (successCount === 0) throw new Error('All scenes failed to generate.');
+
+      const zipBtn = document.getElementById('downloadZipBtn');
+      zipBtn.disabled = false;
+      zipBtn.textContent = `⬇ Download All Scenes (${successCount} MP3s as .zip)`;
 
     } catch (err) {
       appendVoiceoverError('Voiceover error: ' + err.message);
     }
+  }
+
+  // ── Zip download (pure JS — no library needed) ──
+  async function downloadAllZip() {
+    if (generatedScenes.length === 0) return;
+    const btn = document.getElementById('downloadZipBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Zipping…';
+
+    try {
+      // Build ZIP manually using stored format
+      const files = await Promise.all(
+        generatedScenes.map(async s => ({
+          name: s.filename,
+          data: new Uint8Array(await s.blob.arrayBuffer())
+        }))
+      );
+      const zipBlob = buildZip(files);
+      const url  = URL.createObjectURL(zipBlob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = 'voiceover_scenes.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+      appendError('Zip failed: ' + e.message);
+    }
+
+    btn.disabled = false;
+    btn.textContent = `⬇ Download All Scenes (${generatedScenes.length} MP3s as .zip)`;
+  }
+
+  // ── Pure JS ZIP builder (no library) ──
+  function buildZip(files) {
+    // Minimal ZIP implementation — store only (no compression)
+    const enc  = new TextEncoder();
+    const parts = [];
+    const centralDir = [];
+    let offset = 0;
+
+    for (const file of files) {
+      const nameBytes = enc.encode(file.name);
+      const crc = crc32(file.data);
+      const size = file.data.length;
+
+      // Local file header
+      const local = new Uint8Array(30 + nameBytes.length);
+      const dv = new DataView(local.buffer);
+      dv.setUint32(0,  0x04034b50, true); // signature
+      dv.setUint16(4,  20, true);          // version needed
+      dv.setUint16(6,  0,  true);          // flags
+      dv.setUint16(8,  0,  true);          // compression (store)
+      dv.setUint16(10, 0,  true);          // mod time
+      dv.setUint16(12, 0,  true);          // mod date
+      dv.setUint32(14, crc,  true);        // crc32
+      dv.setUint32(18, size, true);        // compressed size
+      dv.setUint32(22, size, true);        // uncompressed size
+      dv.setUint16(26, nameBytes.length, true);
+      dv.setUint16(28, 0, true);           // extra field length
+      local.set(nameBytes, 30);
+
+      parts.push(local);
+      parts.push(file.data);
+
+      // Central directory entry
+      const cd = new Uint8Array(46 + nameBytes.length);
+      const cdv = new DataView(cd.buffer);
+      cdv.setUint32(0,  0x02014b50, true); // signature
+      cdv.setUint16(4,  20, true);
+      cdv.setUint16(6,  20, true);
+      cdv.setUint16(8,  0,  true);
+      cdv.setUint16(10, 0,  true);
+      cdv.setUint16(12, 0,  true);
+      cdv.setUint16(14, 0,  true);
+      cdv.setUint32(16, crc,  true);
+      cdv.setUint32(20, size, true);
+      cdv.setUint32(24, size, true);
+      cdv.setUint16(28, nameBytes.length, true);
+      cdv.setUint16(30, 0, true);
+      cdv.setUint16(32, 0, true);
+      cdv.setUint16(34, 0, true);
+      cdv.setUint16(36, 0, true);
+      cdv.setUint32(38, 0, true);
+      cdv.setUint32(42, offset, true);     // offset of local header
+      cd.set(nameBytes, 46);
+      centralDir.push(cd);
+
+      offset += 30 + nameBytes.length + size;
+    }
+
+    const cdSize   = centralDir.reduce((s, c) => s + c.length, 0);
+    const eocd     = new Uint8Array(22);
+    const eodv     = new DataView(eocd.buffer);
+    eodv.setUint32(0,  0x06054b50, true);
+    eodv.setUint16(4,  0, true);
+    eodv.setUint16(6,  0, true);
+    eodv.setUint16(8,  files.length, true);
+    eodv.setUint16(10, files.length, true);
+    eodv.setUint32(12, cdSize,  true);
+    eodv.setUint32(16, offset,  true);
+    eodv.setUint16(20, 0, true);
+
+    return new Blob([...parts, ...centralDir, eocd], { type: 'application/zip' });
+  }
+
+  // ── CRC32 for ZIP ──
+  function crc32(data) {
+    let crc = 0xFFFFFFFF;
+    const table = crc32.table || (crc32.table = (() => {
+      const t = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        t[i] = c;
+      }
+      return t;
+    })());
+    for (let i = 0; i < data.length; i++) {
+      crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
   }
 
   function appendVoiceoverError(text) {
@@ -1351,8 +1594,15 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
     });
     // Hide audio section when switching chats
     document.getElementById('audioSection').style.display = 'none';
-    // Revoke any lingering audio blob
+    // Revoke any lingering audio blobs
     if (currentAudioUrl) { URL.revokeObjectURL(currentAudioUrl); currentAudioUrl = null; }
+    // Revoke per-scene audio player URLs and clear scene list
+    document.querySelectorAll('#sceneAudioList audio').forEach(a => {
+      if (a.src) URL.revokeObjectURL(a.src);
+    });
+    const sl = document.getElementById('sceneAudioList');
+    if (sl) sl.innerHTML = '';
+    generatedScenes = [];
   }
 
   function showEmptyState(show) {
@@ -1384,6 +1634,7 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
     localStorage.setItem('eleven_key', eKey);
     document.getElementById('setupPanel').classList.add('hidden');
     appendStatus('✅ Keys saved.');
+    if (eKey) fetchVoices(eKey);
   }
 
   // ── Sidebar ──
