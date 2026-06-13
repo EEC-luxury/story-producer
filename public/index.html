@@ -432,6 +432,16 @@
     .msg.ai hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
     .msg.ai br { line-height: 1.6; }
     /* Copy button */
+    .audio-actions { display: flex; align-items: center; gap: 8px; }
+    #closeAudioBtn { background: transparent; border: 1px solid var(--border);
+      color: var(--muted); width: 26px; height: 26px; border-radius: 6px;
+      font-size: 13px; cursor: pointer; padding: 0; line-height: 1;
+      transition: color 0.15s, border-color 0.15s; }
+    #closeAudioBtn:hover { color: var(--text); border-color: var(--accent); }
+    #cancelGenBtn { background: transparent; border: 1px solid #f87171;
+      color: #f87171; padding: 4px 10px; border-radius: 6px; font-size: 11px;
+      font-weight: 600; cursor: pointer; font-family: Inter,sans-serif; }
+    #cancelGenBtn:disabled { opacity: 0.5; cursor: not-allowed; }
     #downloadZipBtn { background: var(--accent); border: none; color: #fff;
       padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
       cursor: pointer; font-family: Inter,sans-serif; transition: opacity 0.2s; }
@@ -712,7 +722,11 @@
   <div id="audioSection">
     <div class="audio-header">
       <span class="audio-title">🎧 Voiceover Ready</span>
-      <button id="downloadZipBtn" onclick="downloadAllZip()">⬇ Download All Scenes (.zip)</button>
+      <div class="audio-actions">
+        <button id="cancelGenBtn" onclick="cancelGeneration()" style="display:none">❌ Cancel</button>
+        <button id="downloadZipBtn" onclick="downloadAllZip()" disabled>⬇ Download All (.zip)</button>
+        <button id="closeAudioBtn" onclick="closeAudioSection()" title="Hide">✕</button>
+      </div>
     </div>
     <div id="sceneAudioList"></div>
   </div>
@@ -759,7 +773,7 @@ WORKFLOW — 4 strict phases:
 
 2. REFINE: User can request changes as many times as needed. Update and show the revised scene plan each time. End each reply with "Anything else to change?" Never execute until user explicitly approves.
 
-3. APPROVE: Only when user says "proceed", "seal it", "looks good", "go ahead", "generate", or clearly approves — move to phase 4. If unsure, ask once: "Ready to generate the full script and audio?"
+3. APPROVE: Only when user says "proceed", "seal it", "looks good", "go ahead", "generate", or clearly approves — move to phase 4. NEVER move to phase 4 just because the user made a change request — always show the updated plan and ask "Anything else to change?" first. If unsure whether they are approving or requesting more changes, ask: "Happy with this? Ready to generate the full script and audio?"
 
 4. EXECUTE: Write the full script scene by scene. Each scene has as many frames as the story needs — one image per frame, not per scene. After ALL frames trigger audio.
 
@@ -797,7 +811,16 @@ Every frame prompt MUST include ALL of the following:
 GOOD: "Extreme close-up, low camera angle. Warm amber Nigerian golden-hour, teal-orange grade, 35mm grain. Stark center-left facing right, towering over Samantha who crouches below him. Black fitted kaftan, silver embroidery on collar, sleeves rolled. Fists clenched, jaw locked, eyes burning with restrained fury. Samantha right foreground blurred, white lace bridal gown disheveled. Frozen guests soft bokeh behind. 9:16 aspect ratio."
 BAD: "Close-up of Stark looking angry." Never write vague lazy prompts.
 
-VOICEOVER ENGINE: ElevenLabs Antoni voice — warm, deep, cinematic male narrator. Dramatic pauses with "...", short punchy lines for impact, flowing sentences for atmosphere. No bracket directions like [whispers] — ignored.
+VOICEOVER ENGINE: ElevenLabs Antoni voice — warm, deep storytelling narrator.
+Write voiceover as a FULL STORY being read aloud — like a narrator reading a novel, not a movie trailer.
+Style rules:
+- Describe what is happening in full sentences as if telling someone the story
+- Include character dialogue naturally woven into the narration (e.g. Mama Samantha fell to her knees. "It is him! Our boy!" she wept.)
+- Connect scenes smoothly — one scene flows into the next
+- Use character names, describe their emotions and actions in detail
+- Natural pacing — not rushed, not overly dramatic
+- Each scene voiceover should be 3-6 sentences minimum
+- No bracket directions like [whispers] — ignored by the TTS engine
 
 CULTURE: You deeply understand Nollywood, Lagos life, Nigerian family drama, street hustle, and emotional twists. Match the user's energy.
 
@@ -835,10 +858,14 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
     });
     ta.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
-        // On mobile virtual keyboards the arrow/go key fires Enter.
-        // Let it insert a newline naturally; use the Send button to submit.
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        if (isMobile) return;
+        // Mobile: NEVER send on Enter — keyboard go/arrow key should insert newline.
+        // Desktop: send on Enter without Shift.
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile|Touch/i.test(navigator.userAgent)
+          || navigator.maxTouchPoints > 1;
+        if (isMobile) {
+          // Let browser handle newline naturally — do NOT preventDefault
+          return;
+        }
         e.preventDefault();
         if (!isSending) sendMessage();
       }
@@ -1205,6 +1232,7 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
 
   // ── Main voiceover generator ──
   let generatedScenes = []; // { num, voice, filename, blob }
+  let _cancelGeneration = false; // cancel flag
 
   async function generateVoiceover(scriptText) {
     try {
@@ -1241,6 +1269,9 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
         sceneList.appendChild(item);
       });
 
+      _cancelGeneration = false;
+      const cancelBtn = document.getElementById('cancelGenBtn');
+      if (cancelBtn) { cancelBtn.style.display = 'inline-block'; cancelBtn.disabled = false; cancelBtn.textContent = '❌ Cancel'; }
       document.getElementById('downloadZipBtn').disabled = true;
       document.getElementById('downloadZipBtn').textContent = '⏳ Generating scenes…';
 
@@ -1266,6 +1297,12 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
           statusEl.className = 'scene-audio-status done';
           successCount++;
 
+          // Check cancel flag
+          if (_cancelGeneration) {
+            statusEl.textContent = '❌ Cancelled';
+            statusEl.className = 'scene-audio-status error';
+            break;
+          }
           // Respect ElevenLabs free tier 3 RPM limit — wait 22s between scenes
           if (scenes.indexOf(scene) < scenes.length - 1) {
             const nextScene = scenes[scenes.indexOf(scene) + 1];
@@ -1283,6 +1320,7 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
 
       if (successCount === 0) throw new Error('All scenes failed to generate.');
 
+      if (cancelBtn) { cancelBtn.style.display = 'none'; }
       const zipBtn = document.getElementById('downloadZipBtn');
       zipBtn.disabled = false;
       zipBtn.textContent = `⬇ Download All Scenes (${successCount} MP3s as .zip)`;
@@ -1290,6 +1328,16 @@ VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate —
     } catch (err) {
       appendVoiceoverError('Voiceover error: ' + err.message);
     }
+  }
+
+  function closeAudioSection() {
+    document.getElementById('audioSection').style.display = 'none';
+  }
+
+  function cancelGeneration() {
+    _cancelGeneration = true;
+    const btn = document.getElementById('cancelGenBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Cancelling…'; }
   }
 
   // ── Zip download (pure JS — no library needed) ──
