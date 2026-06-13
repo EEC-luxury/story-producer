@@ -448,6 +448,13 @@
     }
     .msg-wrap:hover .copy-btn { opacity: 1; }
     .copy-btn.copied { color: var(--green); border-color: var(--green); }
+    .frame-prompt-wrap { margin: 6px 0 10px 0; }
+    .copy-frame-btn { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px;
+      background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+      padding: 4px 12px; border-radius: 6px; font-size: 11px; cursor: pointer;
+      font-family: 'Inter', sans-serif; transition: color 0.15s, border-color 0.15s, background 0.15s; }
+    .copy-frame-btn:hover { color: var(--text); border-color: var(--accent); background: var(--surface3); }
+    .copy-frame-btn.copied { color: var(--green); border-color: var(--green); }
     .msg.status {
       background: transparent;
       border: 1px dashed var(--accent-dim);
@@ -674,8 +681,9 @@
       <input class="key-input" type="password" id="elevenKey" placeholder="Paste your ElevenLabs API key (optional)" autocomplete="off"/>
     </div>
     <p id="setupNote">
-      Get your free Gemini key → <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a><br/>
-      Used for both story writing and voiceover. Keys saved in your browser only.
+      Gemini key → <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a> (chat AI)<br/>
+      ElevenLabs key → <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank">elevenlabs.io</a> (voiceover)<br/>
+      Keys saved in your browser only.
     </p>
     <button id="saveBtn" onclick="saveKeys()">Save Keys</button>
   </div>
@@ -693,7 +701,7 @@
   <div id="audioSection">
     <div class="audio-header">
       <span class="audio-title">🎧 Voiceover Ready</span>
-      <a id="downloadLink" href="#" download="voiceover.wav">⬇ Download MP3</a>
+      <a id="downloadLink" href="#" download="voiceover.mp3">⬇ Download MP3</a>
     </div>
     <audio id="audioPlayback" controls></audio>
   </div>
@@ -725,50 +733,58 @@
   const API_CHAT      = '/api/chat';
   const API_VOICEOVER = '/api/voiceover';
 
-  const SYSTEM_INSTRUCTION = `You are Story Producer AI — a Nollywood and African drama story director and voice production studio.
+  const SYSTEM_INSTRUCTION = `You are Story Producer AI — a Nollywood drama director and voice production studio.
 
-PERSONALITY: Direct, warm, decisive, and excited about storytelling. Execute first, explain only if asked. Never re-summarize what the user just said back to them. Sound like a real creative director who loves the craft.
+PERSONALITY: Direct, warm, decisive. Sound like a real creative director. Never re-summarize what the user said.
 
-WORKFLOW — follow this strictly every time:
+WORKFLOW — 4 strict phases:
 
-1. ANALYZE PHASE (when user shares a story idea or episode):
-   - Acknowledge the story with genuine enthusiasm in 1-2 lines
-   - Summarize the core strengths and dramatic hooks in 2-3 lines
-   - Propose a scene breakdown and suggest a strong cliffhanger or ending direction
-   - Ask 1-2 targeted creative questions (pacing, tone, key character reactions, mood)
-   - End ONLY with: "Anything to add or change before I seal this?"
+1. ANALYZE: When user shares a story, respond with:
+   - 1-2 lines of genuine enthusiasm
+   - Core dramatic hooks and strengths (2-3 lines)
+   - Proposed scene breakdown with suggested ending direction
+   - Ask: "Do you have an image reference or previous episode frames? If yes, share the last frame prompt so I can match the visual style. If no, we build fresh."
+   - 1-2 focused questions on pacing, tone, or key character moments
+   - End with: "Anything to add or change?"
 
-2. FEEDBACK PHASE:
-   - One round only. Incorporate feedback quickly.
-   - If user approves, says "proceed", "I agree", "let's go", "seal it", "nothing to add", or similar — move to step 3 immediately. Do NOT ask again.
+2. REFINE: User can request changes as many times as needed. Update and show the revised scene plan each time. End each reply with "Anything else to change?" Never execute until user explicitly approves.
 
-3. EXECUTE PHASE (only after approval):
-   - Write the full episode script scene by scene
-   - Break each scene into multiple FRAMES (minimum 3 frames per scene)
-   - For each frame use this format exactly:
-     **[Frame X Image Prompt]:** Rich cinematic prompt — open with lighting/color grade/camera style, describe the specific action and composition in 2-3 sentences, vary shot types (close-up/medium/wide/POV), end with "9:16 aspect ratio."
-     **[Voiceover Text]:** Exact narration for this frame. 1-3 punchy sentences. Use ... for pauses, — for dramatic cuts.
-   - After ALL frames, end with exactly this on its own line:
+3. APPROVE: Only when user says "proceed", "seal it", "looks good", "go ahead", "generate", or clearly approves — move to phase 4. If unsure, ask once: "Ready to generate the full script and audio?"
+
+4. EXECUTE: Write the full script scene by scene. Each scene has as many frames as the story needs — one image per frame, not per scene. After ALL frames trigger audio.
+
+FRAME FORMAT (use exactly):
+**[Frame X Image Prompt]:** [Full cinematic prompt — see IMAGE RULES]
+**[Voiceover Text]:** [1-3 punchy sentences. Use ... for pauses, — for cuts.]
+
+After the last frame write on its own line:
 ### TRIGGER_VOICEOVER ###
-Then write ONLY the compiled voiceover lines in order — clean continuous narration, no labels, no frame numbers.
+Then ONLY the compiled voiceover lines in order — no labels, no frame numbers.
 
-VOICEOVER ENGINE: The platform uses Google Gemini TTS (Charon voice) — a deep, rich, cinematic male narrator. Write voiceover text that plays to this voice's strengths: dramatic pauses with "...", emotional peaks, short punchy sentences for impact, and long flowing sentences for atmosphere. Avoid stage directions in brackets — the voice cannot act on them. Write the words exactly as they should be spoken.
+IMAGE RULES:
+Build a Visual Bible: color grade, lighting, camera style, costume palette. Apply to every frame. Match reference if user provided one.
+Every frame prompt MUST include ALL of the following:
+- Camera angle + shot type (extreme close-up, wide shot, low-angle, bird's eye, POV)
+- Lighting (warm amber golden-hour, harsh overhead fluorescent, soft candlelight)
+- Color grade (teal-orange cinematic, desaturated cold blue, warm Nollywood gold)
+- Exact body pose of each character (kneeling on left knee, slumped against wall, standing arms crossed)
+- Distance from camera (filling the frame, mid-distance, far background)
+- Height difference if multiple characters (towering over her, crouched below him)
+- Position in frame (left foreground, right background, center frame)
+- Where they face or who they look at (facing away, eyes locked on woman to his right, staring into lens)
+- Full clothing: design, color, material, texture (deep burgundy Ankara wrapper with gold embroidery; cream linen senator top slightly wrinkled)
+- Facial expression and emotion (jaw clenched, eyes glistening, lips parted in disbelief)
+- Background detail (blurred wedding guests, grand hall pillars, dusty Lagos street)
+- End with: "9:16 aspect ratio."
 
-IMAGE PROMPT RULES:
-- Build a Visual Bible from the story (color grade, lighting, setting, costume, camera style) and apply it consistently to EVERY frame across all episodes
-- Every frame MUST: open with Visual Bible elements, describe specific action/composition, vary shot type
-- GOOD: "Cinematic close-up, warm amber Nigerian golden-hour light, 35mm film grain. A man's collar pulled aside to reveal a crescent birthmark on his neck, dramatically side-lit. Background figures frozen in shock, softly blurred. 9:16 aspect ratio."
-- BAD: "A close-up of Stark's neck" — NEVER write lazy one-liners
+GOOD: "Extreme close-up, low camera angle. Warm amber Nigerian golden-hour, teal-orange grade, 35mm grain. Stark center-left facing right, towering over Samantha who crouches below him. Black fitted kaftan, silver embroidery on collar, sleeves rolled. Fists clenched, jaw locked, eyes burning with restrained fury. Samantha right foreground blurred, white lace bridal gown disheveled. Frozen guests soft bokeh behind. 9:16 aspect ratio."
+BAD: "Close-up of Stark looking angry." Never write vague lazy prompts.
 
-TONE & CULTURE:
-- You deeply understand Nollywood storytelling, Lagos settings, Nigerian culture, family drama, street hustle, and emotional twists
-- Celebrate the strongest parts of a story before refining it
-- Match the energy: if the story is intense, your analysis should feel intense
-- Be the creative partner the user wishes they had in the room
+VOICEOVER ENGINE: ElevenLabs Antoni voice — warm, deep, cinematic male narrator. Dramatic pauses with "...", short punchy lines for impact, flowing sentences for atmosphere. No bracket directions like [whispers] — ignored.
 
-DO NOT: ask more than one feedback round, re-summarize what the user said word-for-word, write lazy image prompts, skip TRIGGER_VOICEOVER once approved, or ask for approval more than once.
+CULTURE: You deeply understand Nollywood, Lagos life, Nigerian family drama, street hustle, and emotional twists. Match the user's energy.
 
-VOICEOVER ERRORS & RETRY: If the user says audio failed, error, or asks to regenerate/redo/retry the voiceover, do NOT rewrite the story. Say: The voiceover failed (API rate limit likely). Tap the Retry Voiceover button below the error message. If they say button is gone after refresh, say: Just type regenerate audio and I will resend the script so the button reappears. When user types regenerate audio, re-output full scene breakdown ending with ### TRIGGER_VOICEOVER ### and compiled voiceover lines.`;
+VOICEOVER ERRORS: If user says audio failed or asks to retry/redo/regenerate — do NOT rewrite the story. Say: "The voiceover failed (usually a rate limit). Tap the Retry Voiceover button below the error." If page refreshed and button gone, say: "Type regenerate audio and I will resend the script." When they type regenerate audio, re-output full script ending with ### TRIGGER_VOICEOVER ### and compiled voiceover lines.``;
 
   // ── State ──
   let db            = null;
@@ -1114,35 +1130,32 @@ VOICEOVER ERRORS & RETRY: If the user says audio failed, error, or asks to regen
     try {
       if (currentAudioUrl) { URL.revokeObjectURL(currentAudioUrl); currentAudioUrl = null; }
 
-      const gKey = localStorage.getItem('gemini_key');
-      if (!gKey) throw new Error('No Gemini API key found. Please add it via ⚙️ API Keys.');
+      const eKey = localStorage.getItem('eleven_key');
+      if (!eKey) throw new Error('No ElevenLabs key found. Please add it via ⚙️ API Keys.');
 
-      // Use Gemini TTS — free, uses same Gemini key as chat
-      const ttsRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${gKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: scriptText }] }],
-            generationConfig: {
-              responseModalities: ['AUDIO'],
-              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } }
-            },
-            systemInstruction: { parts: [{ text: 'You are a dramatic Nollywood narrator. Deliver with deep emotion, gravitas, and cinematic pacing.' }] }
-          })
-        }
-      );
-      if (!ttsRes.ok) {
-        const errText = await ttsRes.text();
-        throw new Error(`Gemini TTS ${ttsRes.status}: ${errText}`);
+      // ElevenLabs Antoni (ErXwobaYiN019PkySvjV) confirmed working on free tier
+      // Fallback: saved account voice
+      const tryVoices = ['ErXwobaYiN019PkySvjV', 'CwhRBWXzGAHq8TQ4Fs17'];
+      let blob = null;
+      for (const voiceId of tryVoices) {
+        const ttsRes = await fetch(
+          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'xi-api-key': eKey },
+            body: JSON.stringify({
+              text: scriptText,
+              model_id: 'eleven_turbo_v2_5',
+              voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+            }),
+          }
+        );
+        if (ttsRes.status === 402 || ttsRes.status === 403 || ttsRes.status === 404) continue;
+        if (!ttsRes.ok) { const e = await ttsRes.text(); throw new Error(`ElevenLabs ${ttsRes.status}: ${e}`); }
+        blob = new Blob([await ttsRes.arrayBuffer()], { type: 'audio/mpeg' });
+        break;
       }
-      const ttsData = await ttsRes.json();
-      const b64 = ttsData.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!b64) throw new Error('No audio returned from Gemini TTS');
-
-      const pcmBytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const blob = buildWavBlob(pcmBytes);
+      if (!blob) throw new Error('All voices failed. Check your ElevenLabs key or free tier limits.');
       currentAudioUrl = URL.createObjectURL(blob);
 
       const player = document.getElementById('audioPlayback');
@@ -1218,7 +1231,37 @@ VOICEOVER ERRORS & RETRY: If the user says audio failed, error, or asks to regen
       }
       out.push('<p>' + b.replace(/\n/g, '<br/>') + '</p>');
     }
-    return out.join('\n');
+    var final = out.join('\n');
+    // Wrap each Frame Image Prompt with a copy button
+    final = final.replace(
+      /(<strong>\[Frame \d+ Image Prompt\]:<\/strong>:?\s*)((?:(?!<strong>\[).)*)/gs,
+      function(match, label, content) {
+        var raw = (label + content)
+          .replace(/<[^>]+>/g, '')
+          .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+        var escaped = raw.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        return '<div class="frame-prompt-wrap">' + label + content +
+          '<button class="copy-frame-btn" onclick="copyFramePrompt(this)" data-raw="' + escaped + '">' +
+          '📋 Copy Image Prompt</button></div>';
+      }
+    );
+    return final;
+  }
+
+  function copyFramePrompt(btn) {
+    const text = btn.getAttribute('data-raw')
+      .replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = '✓ Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '📋 Copy Image Prompt'; btn.classList.remove('copied'); }, 2000);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => { btn.textContent = '📋 Copy Image Prompt'; }, 2000);
+    });
   }
 
   function appendMsg(text, role, scroll = true) {
