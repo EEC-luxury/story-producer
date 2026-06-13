@@ -17,16 +17,22 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           contents: history,
           systemInstruction: { parts: [{ text: systemInstruction }] },
+          generationConfig: {
+            maxOutputTokens: 8192,
+            temperature: 1.0,
+          },
         }),
       }
     );
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) {
-      const reason = data?.error?.message || data?.candidates?.[0]?.finishReason || 'Empty response from Gemini.';
-      return res.status(502).json({ error: reason });
+
+    if (!response.ok) {
+      const err = await response.text();
+      return res.status(response.status).json({ error: `Gemini ${response.status}: ${err}` });
     }
-    res.json({ text });
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    res.status(200).json({ text });
   } catch (err) {
     res.status(500).json({ error: 'Gemini request failed: ' + err.message });
   }
